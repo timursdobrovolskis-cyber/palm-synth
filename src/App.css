@@ -1,0 +1,173 @@
+.app-shell {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #1a1a1a 0%, #0d0d0d 100%);
+  border-left: 3px solid #FF6600;
+  border-right: 3px solid #FF6600;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  color: #fff;
+  font-family: 'Courier New', monospace;
+}
+
+.header {
+  border-bottom: 2px solid #FF6600;
+  padding-bottom: 16px;
+}
+
+.badge {
+  font-size: 0.75rem;
+  letter-spacing: 0.2em;
+  color: #FF6600;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 2.4rem;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.tagline {
+  font-size: 0.9rem;
+  color: #999;
+  letter-spacing: 0.08em;
+  margin-top: 8px;
+}
+
+.main-grid {
+  display: grid;
+  grid-template-columns: 240px 1fr 200px;
+  gap: 20px;
+  flex: 1;
+}
+
+.left-panel,
+.right-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.status-box {
+  border: 2px solid #FF6600;
+  padding: 12px;
+  background: rgba(255, 102, 0, 0.05);
+}
+
+.status-label {
+  font-size: 0.7rem;
+  letter-spacing: 0.15em;
+  color: #FF6600;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.status-value {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 0.05em;
+}
+
+.specs {
+  border: 1px solid #333;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.spec-line {
+  font-size: 0.8rem;
+  color: #ccc;
+  letter-spacing: 0.05em;
+  line-height: 1.6;
+}
+
+.start-btn {
+  border: 2px solid #FF6600;
+  background: #FF6600;
+  color: #000;
+  padding: 12px 16px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.start-btn:hover:not(:disabled) {
+  background: #ff7722;
+  border-color: #ff7722;
+  box-shadow: 0 0 20px rgba(255, 102, 0, 0.5);
+}
+
+.start-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.center-panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.viewer {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 2px solid #FF6600;
+  overflow: hidden;
+  background: #000;
+}
+
+.video,
+.overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.overlay {
+  z-index: 2;
+  pointer-events: none;
+}
+
+.metrics-box {
+  border: 2px solid #333;
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.metric {
+  border-left: 3px solid #FF6600;
+  padding-left: 12px;
+}
+
+.metric-label {
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  color: #FF6600;
+  font-weight: 700;
+}
+
+.metric-value {
+  font-size: 1.1rem;
+  color: #fff;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  margin-top: 4px;
+}
+
+@media (max-width: 1200px) {
+  .main-grid {
+    grid-template-columns: 1fr;
+  }
+}
