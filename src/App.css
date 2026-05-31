@@ -53,6 +53,47 @@
   gap: 16px;
 }
 
+.control-panel {
+  border: 2px solid #FF6600;
+  padding: 14px;
+  background: rgba(255, 102, 0, 0.05);
+  display: grid;
+  gap: 10px;
+}
+
+.control-title,
+.parameters-title {
+  font-size: 0.7rem;
+  letter-spacing: 0.15em;
+  color: #FF6600;
+  font-weight: 700;
+}
+
+.selected-sound {
+  font-size: 1.6rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: #fff;
+}
+
+.parameter-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.8rem;
+  color: #ccc;
+  letter-spacing: 0.05em;
+  line-height: 1.4;
+}
+
+.control-status {
+  border-top: 1px solid #333;
+  padding-top: 10px;
+  font-size: 0.8rem;
+  color: #fff;
+  letter-spacing: 0.05em;
+}
+
 .status-box {
   border: 2px solid #FF6600;
   padding: 12px;

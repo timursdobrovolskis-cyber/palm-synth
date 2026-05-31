@@ -14,7 +14,9 @@ function App() {
   const [started, setStarted] = useState(false)
   const [status, setStatus] = useState('IDLE')
   const [handsDetected, setHandsDetected] = useState(0)
-  const [droneStatus, setDroneStatus] = useState('Volume saved: 50%')
+  const [droneStatus, setDroneStatus] = useState('Idle')
+  const [volumePercent, setVolumePercent] = useState(50)
+  const [reverbPercent, setReverbPercent] = useState(30)
 
   const videoRef = useRef(null)
   const canvasRef = useRef(null)
@@ -25,8 +27,11 @@ function App() {
   const currentNoteRef = useRef('A3')
   const leftPinchActiveRef = useRef(false)
   const rightPinchActiveRef = useRef(false)
+  const rightReverbPinchActiveRef = useRef(false)
   const savedVolumePercentRef = useRef(50)
   const currentVolumePercentRef = useRef(50)
+  const savedReverbPercentRef = useRef(30)
+  const currentReverbPercentRef = useRef(30)
 
   useEffect(() => {
     return () => {
@@ -77,6 +82,10 @@ function App() {
       currentNoteRef.current = 'A3'
       savedVolumePercentRef.current = 50
       currentVolumePercentRef.current = 50
+      savedReverbPercentRef.current = 30
+      currentReverbPercentRef.current = 30
+      setVolumePercent(50)
+      setReverbPercent(30)
       synth.volume.value = -6
 
       console.log('Audio engine initialized')
@@ -159,9 +168,14 @@ function App() {
     currentNoteRef.current = 'A3'
     leftPinchActiveRef.current = false
     rightPinchActiveRef.current = false
+    rightReverbPinchActiveRef.current = false
     savedVolumePercentRef.current = 50
     currentVolumePercentRef.current = 50
-    setDroneStatus('Volume saved: 50%')
+    savedReverbPercentRef.current = 30
+    currentReverbPercentRef.current = 30
+    setVolumePercent(50)
+    setReverbPercent(30)
+    setDroneStatus('Idle')
     setHandsDetected(0)
     setStatus('STOPPED')
     setStarted(false)
@@ -248,28 +262,55 @@ function App() {
           } else if (!leftPinched && leftPinchActiveRef.current) {
             leftPinchActiveRef.current = false
             rightPinchActiveRef.current = false
-            savedVolumePercentRef.current = currentVolumePercentRef.current
-            setDroneStatus(`Volume saved: ${savedVolumePercentRef.current}%`)
+            if (rightReverbPinchActiveRef.current) {
+              rightReverbPinchActiveRef.current = false
+              savedReverbPercentRef.current = currentReverbPercentRef.current
+              setReverbPercent(savedReverbPercentRef.current)
+              setDroneStatus(`Reverb saved: ${savedReverbPercentRef.current}%`)
+            } else if (rightPinchActiveRef.current) {
+              savedVolumePercentRef.current = currentVolumePercentRef.current
+              setVolumePercent(savedVolumePercentRef.current)
+              setDroneStatus(`Volume saved: ${savedVolumePercentRef.current}%`)
+            }
           }
 
           if (leftPinchActiveRef.current) {
             const rightHand = rightHandIndex >= 0 ? hands[rightHandIndex] : null
             const rightThumbTip = rightHand?.[4]
             const rightIndexTip = rightHand?.[8]
+            const rightMiddleTip = rightHand?.[12]
             const rightPinched =
               !!rightThumbTip &&
               !!rightIndexTip &&
               Math.hypot(rightThumbTip.x - rightIndexTip.x, rightThumbTip.y - rightIndexTip.y) < 0.05
+            const rightReverbPinched =
+              !!rightThumbTip &&
+              !!rightMiddleTip &&
+              Math.hypot(rightThumbTip.x - rightMiddleTip.x, rightThumbTip.y - rightMiddleTip.y) < 0.05
 
-            if (rightPinched) {
+            if (rightReverbPinched) {
+              const reverbValue = Math.round(clamp(1 - rightMiddleTip.y, 0, 1) * 100)
+              currentReverbPercentRef.current = reverbValue
+              setReverbPercent(reverbValue)
+              window.palmSynthAudio.reverb.wet.value = reverbValue / 100
+              setDroneStatus(`Editing reverb: ${reverbValue}%`)
+              rightReverbPinchActiveRef.current = true
+            } else if (rightReverbPinchActiveRef.current) {
+              rightReverbPinchActiveRef.current = false
+              savedReverbPercentRef.current = currentReverbPercentRef.current
+              setReverbPercent(savedReverbPercentRef.current)
+              setDroneStatus(`Reverb saved: ${savedReverbPercentRef.current}%`)
+            } else if (rightPinched) {
               const volumePercent = Math.round(clamp(1 - rightIndexTip.y, 0, 1) * 100)
               currentVolumePercentRef.current = volumePercent
+              setVolumePercent(volumePercent)
               window.palmSynthAudio.synth.volume.value = -18 + (volumePercent / 100) * 24
               setDroneStatus(`Editing volume: ${volumePercent}%`)
               rightPinchActiveRef.current = true
             } else if (rightPinchActiveRef.current) {
               rightPinchActiveRef.current = false
               savedVolumePercentRef.current = currentVolumePercentRef.current
+              setVolumePercent(savedVolumePercentRef.current)
               setDroneStatus(`Volume saved: ${savedVolumePercentRef.current}%`)
             }
           }
@@ -314,13 +355,31 @@ function App() {
 
       <div className="main-grid">
         <div className="left-panel">
-          <div className="status-box">
-            <div className="status-label">SYSTEM STATUS</div>
-            <div className="status-value">{status}</div>
+          <div className="control-panel">
+            <div className="control-title">Selected Sound</div>
+            <div className="selected-sound">DRONE</div>
+            <div className="parameters-title">Parameters</div>
+            <div className="parameter-row">
+              <span>Volume:</span>
+              <span>{volumePercent}%</span>
+            </div>
+            <div className="parameter-row">
+              <span>Reverb:</span>
+              <span>{reverbPercent}%</span>
+            </div>
+            <div className="parameter-row">
+              <span>Brightness:</span>
+              <span>0%</span>
+            </div>
+            <div className="parameter-row">
+              <span>Texture:</span>
+              <span>0%</span>
+            </div>
+            <div className="control-status">{droneStatus}</div>
           </div>
           <div className="specs">
+            <div className="spec-line">SYSTEM: {status}</div>
             <div className="spec-line">HANDS DETECTED: {handsDetected}</div>
-            <div className="spec-line">{droneStatus}</div>
           </div>
           <button className="start-btn" onClick={startSession} disabled={started}>
             {started ? '[ ACTIVE ]' : '[ START ]'}
