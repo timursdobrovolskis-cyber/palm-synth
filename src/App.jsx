@@ -9,50 +9,59 @@ const WASM_URL = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm'
 const SCALE_NOTES = ['C3', 'D3', 'F3', 'G3', 'A3', 'C4', 'D4', 'F4', 'G4', 'A4', 'C5']
 
 const clamp = (val, min, max) => Math.min(Math.max(val, min), max)
-const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y)
 
 function App() {
   const [started, setStarted] = useState(false)
   const [status, setStatus] = useState('IDLE')
   const [handsDetected, setHandsDetected] = useState(0)
+  const [droneStatus, setDroneStatus] = useState('Volume saved: 50%')
 
   const videoRef = useRef(null)
   const canvasRef = useRef(null)
   const landmarkerRef = useRef(null)
   const animationRef = useRef(null)
+  const streamRef = useRef(null)
+  const isRunningRef = useRef(false)
+  const currentNoteRef = useRef('A3')
+  const leftPinchActiveRef = useRef(false)
+  const rightPinchActiveRef = useRef(false)
+  const savedVolumePercentRef = useRef(50)
+  const currentVolumePercentRef = useRef(50)
 
   useEffect(() => {
     return () => {
+      isRunningRef.current = false
       if (animationRef.current) cancelAnimationFrame(animationRef.current)
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop())
+        streamRef.current = null
+      }
       if (landmarkerRef.current?.close) landmarkerRef.current.close()
     }
   }, [])
 
   const setupAudio = async () => {
     setStatus('INITIALIZING AUDIO')
-    
+
     try {
-      // Initialize Tone.js audio context
       await Tone.start()
-      
-      // Create filter
+
       const filter = new Tone.Filter({
         frequency: 1200,
         type: 'lowpass',
       })
-      
-      // Create reverb
+
       const reverb = new Tone.Reverb({
         decay: 2.5,
         wet: 0.3,
       })
-      
-      // Chain: synth → filter → reverb → destination
+
+      await reverb.generate()
+
       filter.connect(reverb)
       reverb.toDestination()
-      
-      // Create synth and connect to filter
-      const synth = new Tone.PolySynth(Tone.Synth, {
+
+      const synth = new Tone.Synth({
         oscillator: { type: 'triangle' },
         envelope: {
           attack: 0.1,
@@ -61,13 +70,15 @@ function App() {
           release: 1,
         },
       }).connect(filter)
-      
-      // Store in refs for later control
+
       window.palmSynthAudio = { synth, filter, reverb }
-      
-      // Start with ambient note
+
       synth.triggerAttack('A3')
-      
+      currentNoteRef.current = 'A3'
+      savedVolumePercentRef.current = 50
+      currentVolumePercentRef.current = 50
+      synth.volume.value = -6
+
       console.log('Audio engine initialized')
       setStatus('ACTIVE')
     } catch (error) {
@@ -78,6 +89,7 @@ function App() {
 
   const startSession = async () => {
     if (started) return
+    isRunningRef.current = true
     setStarted(true)
     setStatus('REQUESTING ACCESS')
 
@@ -86,6 +98,7 @@ function App() {
         video: { width: 640, height: 480 },
         audio: false,
       })
+      streamRef.current = stream
 
       const video = videoRef.current
       if (!video) throw new Error('Video element missing')
@@ -106,11 +119,58 @@ function App() {
     } catch (error) {
       console.error('Start failed:', error)
       setStatus('FAILED')
+      isRunningRef.current = false
+      setStarted(false)
     }
+  }
+
+  const stopSession = () => {
+    isRunningRef.current = false
+
+    if (animationRef.current) {
+      cancelAnimationFrame(animationRef.current)
+      animationRef.current = null
+    }
+
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop())
+      streamRef.current = null
+    }
+
+    const video = videoRef.current
+    if (video) {
+      video.pause()
+      video.srcObject = null
+    }
+
+    if (landmarkerRef.current?.close) {
+      landmarkerRef.current.close()
+      landmarkerRef.current = null
+    }
+
+    if (window.palmSynthAudio?.synth) {
+      window.palmSynthAudio.synth.triggerRelease()
+      window.palmSynthAudio.synth.dispose()
+      window.palmSynthAudio.filter?.dispose?.()
+      window.palmSynthAudio.reverb?.dispose?.()
+      window.palmSynthAudio = null
+    }
+
+    currentNoteRef.current = 'A3'
+    leftPinchActiveRef.current = false
+    rightPinchActiveRef.current = false
+    savedVolumePercentRef.current = 50
+    currentVolumePercentRef.current = 50
+    setDroneStatus('Volume saved: 50%')
+    setHandsDetected(0)
+    setStatus('STOPPED')
+    setStarted(false)
   }
 
   const startDetection = () => {
     const detect = () => {
+      if (!isRunningRef.current) return
+
       const video = videoRef.current
       const canvas = canvasRef.current
       const landmarker = landmarkerRef.current
@@ -124,7 +184,7 @@ function App() {
 
         const result = landmarker.detectForVideo(video, performance.now())
         const hands = result?.landmarks || []
-        const handedness = result?.handedness || []
+        const handedness = result?.handedness ?? result?.handednesses ?? []
 
         // Hand skeleton connections (MediaPipe 21-point hand model)
         const connections = [
@@ -170,29 +230,62 @@ function App() {
           })
         })
 
-        // Update synth volume based on hand height
-        if (hands.length > 0 && window.palmSynthAudio) {
-          const avgY = hands.reduce((sum, hand) => {
-            const wrist = hand[0]
-            return sum + (wrist?.y || 0)
-          }, 0) / hands.length
-          
-          // Hand high on screen (low Y) = louder, hand low (high Y) = quieter
-          const volume = clamp(1 - avgY, 0, 1)
-          window.palmSynthAudio.synth.volume.value = -20 + volume * 20 // Range: -20dB to 0dB
-        }
-
-        // Update pitch based on left hand index finger height
         if (window.palmSynthAudio) {
           const leftHandIndex = handedness.findIndex(h => h[0].categoryName === 'Left')
+          const rightHandIndex = handedness.findIndex(h => h[0].categoryName === 'Right')
+
+          const leftHand = leftHandIndex >= 0 ? hands[leftHandIndex] : null
+          const leftThumbTip = leftHand?.[4]
+          const leftIndexTip = leftHand?.[8]
+          const leftPinched =
+            !!leftThumbTip &&
+            !!leftIndexTip &&
+            Math.hypot(leftThumbTip.x - leftIndexTip.x, leftThumbTip.y - leftIndexTip.y) < 0.05
+
+          if (leftPinched && !leftPinchActiveRef.current) {
+            leftPinchActiveRef.current = true
+            setDroneStatus('Drone edit mode')
+          } else if (!leftPinched && leftPinchActiveRef.current) {
+            leftPinchActiveRef.current = false
+            rightPinchActiveRef.current = false
+            savedVolumePercentRef.current = currentVolumePercentRef.current
+            setDroneStatus(`Volume saved: ${savedVolumePercentRef.current}%`)
+          }
+
+          if (leftPinchActiveRef.current) {
+            const rightHand = rightHandIndex >= 0 ? hands[rightHandIndex] : null
+            const rightThumbTip = rightHand?.[4]
+            const rightIndexTip = rightHand?.[8]
+            const rightPinched =
+              !!rightThumbTip &&
+              !!rightIndexTip &&
+              Math.hypot(rightThumbTip.x - rightIndexTip.x, rightThumbTip.y - rightIndexTip.y) < 0.05
+
+            if (rightPinched) {
+              const volumePercent = Math.round(clamp(1 - rightIndexTip.y, 0, 1) * 100)
+              currentVolumePercentRef.current = volumePercent
+              window.palmSynthAudio.synth.volume.value = -18 + (volumePercent / 100) * 24
+              setDroneStatus(`Editing volume: ${volumePercent}%`)
+              rightPinchActiveRef.current = true
+            } else if (rightPinchActiveRef.current) {
+              rightPinchActiveRef.current = false
+              savedVolumePercentRef.current = currentVolumePercentRef.current
+              setDroneStatus(`Volume saved: ${savedVolumePercentRef.current}%`)
+            }
+          }
+
+          // Update pitch based on left hand index finger height
           if (leftHandIndex >= 0) {
-            const leftHand = hands[leftHandIndex]
-            const indexTip = leftHand?.[8] // Index finger tip
+            const pitchHand = hands[leftHandIndex]
+            const indexTip = pitchHand?.[8] // Index finger tip
             if (indexTip) {
               // Map finger Y position to scale notes (0 = high = C5, 1 = low = C3)
               const noteIndex = Math.floor(clamp(1 - indexTip.y, 0, 1) * (SCALE_NOTES.length - 1))
               const note = SCALE_NOTES[noteIndex]
-              window.palmSynthAudio.synth.frequency.value = Tone.Frequency(note).toFrequency()
+              if (note !== currentNoteRef.current) {
+                window.palmSynthAudio.synth.setNote(note)
+                currentNoteRef.current = note
+              }
             }
           }
         }
@@ -201,10 +294,14 @@ function App() {
         console.log(`Hands detected: ${hands.length}`)
       }
 
-      animationRef.current = requestAnimationFrame(detect)
+      if (isRunningRef.current) {
+        animationRef.current = requestAnimationFrame(detect)
+      }
     }
 
-    animationRef.current = requestAnimationFrame(detect)
+    if (isRunningRef.current) {
+      animationRef.current = requestAnimationFrame(detect)
+    }
   }
 
   return (
@@ -223,16 +320,20 @@ function App() {
           </div>
           <div className="specs">
             <div className="spec-line">HANDS DETECTED: {handsDetected}</div>
+            <div className="spec-line">{droneStatus}</div>
           </div>
           <button className="start-btn" onClick={startSession} disabled={started}>
             {started ? '[ ACTIVE ]' : '[ START ]'}
+          </button>
+          <button className="stop-btn" onClick={stopSession} disabled={!started}>
+            [ STOP ]
           </button>
         </div>
 
         <div className="center-panel">
           <div className="viewer">
-            <video ref={videoRef} className="video" muted playsInline />
-            <canvas ref={canvasRef} className="overlay" />
+            <video ref={videoRef} className="video mirrored" muted playsInline />
+            <canvas ref={canvasRef} className="overlay mirrored" />
           </div>
         </div>
 
