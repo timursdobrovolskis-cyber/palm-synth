@@ -9,6 +9,7 @@ const WASM_URL = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm'
 const SCALE_NOTES = ['C3', 'D3', 'F3', 'G3', 'A3', 'C4', 'D4', 'F4', 'G4', 'A4', 'C5']
 
 const clamp = (val, min, max) => Math.min(Math.max(val, min), max)
+const brightnessToFrequency = (percent) => 200 + (percent / 100) * 4800
 
 function App() {
   const [started, setStarted] = useState(false)
@@ -17,6 +18,7 @@ function App() {
   const [droneStatus, setDroneStatus] = useState('Idle')
   const [volumePercent, setVolumePercent] = useState(50)
   const [reverbPercent, setReverbPercent] = useState(30)
+  const [brightnessPercent, setBrightnessPercent] = useState(20)
 
   const videoRef = useRef(null)
   const canvasRef = useRef(null)
@@ -28,10 +30,13 @@ function App() {
   const leftPinchActiveRef = useRef(false)
   const rightPinchActiveRef = useRef(false)
   const rightReverbPinchActiveRef = useRef(false)
+  const rightBrightnessPinchActiveRef = useRef(false)
   const savedVolumePercentRef = useRef(50)
   const currentVolumePercentRef = useRef(50)
   const savedReverbPercentRef = useRef(30)
   const currentReverbPercentRef = useRef(30)
+  const savedBrightnessPercentRef = useRef(20)
+  const currentBrightnessPercentRef = useRef(20)
 
   useEffect(() => {
     return () => {
@@ -84,8 +89,12 @@ function App() {
       currentVolumePercentRef.current = 50
       savedReverbPercentRef.current = 30
       currentReverbPercentRef.current = 30
+      savedBrightnessPercentRef.current = 20
+      currentBrightnessPercentRef.current = 20
       setVolumePercent(50)
       setReverbPercent(30)
+      setBrightnessPercent(20)
+      filter.frequency.value = brightnessToFrequency(20)
       synth.volume.value = -6
 
       console.log('Audio engine initialized')
@@ -169,12 +178,16 @@ function App() {
     leftPinchActiveRef.current = false
     rightPinchActiveRef.current = false
     rightReverbPinchActiveRef.current = false
+    rightBrightnessPinchActiveRef.current = false
     savedVolumePercentRef.current = 50
     currentVolumePercentRef.current = 50
     savedReverbPercentRef.current = 30
     currentReverbPercentRef.current = 30
+    savedBrightnessPercentRef.current = 20
+    currentBrightnessPercentRef.current = 20
     setVolumePercent(50)
     setReverbPercent(30)
+    setBrightnessPercent(20)
     setDroneStatus('Idle')
     setHandsDetected(0)
     setStatus('STOPPED')
@@ -267,6 +280,11 @@ function App() {
               savedReverbPercentRef.current = currentReverbPercentRef.current
               setReverbPercent(savedReverbPercentRef.current)
               setDroneStatus(`Reverb saved: ${savedReverbPercentRef.current}%`)
+            } else if (rightBrightnessPinchActiveRef.current) {
+              rightBrightnessPinchActiveRef.current = false
+              savedBrightnessPercentRef.current = currentBrightnessPercentRef.current
+              setBrightnessPercent(savedBrightnessPercentRef.current)
+              setDroneStatus(`Brightness saved: ${savedBrightnessPercentRef.current}%`)
             } else if (rightPinchActiveRef.current) {
               savedVolumePercentRef.current = currentVolumePercentRef.current
               setVolumePercent(savedVolumePercentRef.current)
@@ -279,6 +297,7 @@ function App() {
             const rightThumbTip = rightHand?.[4]
             const rightIndexTip = rightHand?.[8]
             const rightMiddleTip = rightHand?.[12]
+            const rightRingTip = rightHand?.[16]
             const rightPinched =
               !!rightThumbTip &&
               !!rightIndexTip &&
@@ -287,8 +306,14 @@ function App() {
               !!rightThumbTip &&
               !!rightMiddleTip &&
               Math.hypot(rightThumbTip.x - rightMiddleTip.x, rightThumbTip.y - rightMiddleTip.y) < 0.05
+            const rightBrightnessPinched =
+              !!rightThumbTip &&
+              !!rightRingTip &&
+              Math.hypot(rightThumbTip.x - rightRingTip.x, rightThumbTip.y - rightRingTip.y) < 0.05
 
             if (rightReverbPinched) {
+              rightPinchActiveRef.current = false
+              rightBrightnessPinchActiveRef.current = false
               const reverbValue = Math.round(clamp(1 - rightMiddleTip.y, 0, 1) * 100)
               currentReverbPercentRef.current = reverbValue
               setReverbPercent(reverbValue)
@@ -300,7 +325,23 @@ function App() {
               savedReverbPercentRef.current = currentReverbPercentRef.current
               setReverbPercent(savedReverbPercentRef.current)
               setDroneStatus(`Reverb saved: ${savedReverbPercentRef.current}%`)
+            } else if (rightBrightnessPinched) {
+              rightPinchActiveRef.current = false
+              rightReverbPinchActiveRef.current = false
+              const brightnessValue = Math.round(clamp(1 - rightRingTip.y, 0, 1) * 100)
+              currentBrightnessPercentRef.current = brightnessValue
+              setBrightnessPercent(brightnessValue)
+              window.palmSynthAudio.filter.frequency.value = brightnessToFrequency(brightnessValue)
+              setDroneStatus(`Editing brightness: ${brightnessValue}%`)
+              rightBrightnessPinchActiveRef.current = true
+            } else if (rightBrightnessPinchActiveRef.current) {
+              rightBrightnessPinchActiveRef.current = false
+              savedBrightnessPercentRef.current = currentBrightnessPercentRef.current
+              setBrightnessPercent(savedBrightnessPercentRef.current)
+              setDroneStatus(`Brightness saved: ${savedBrightnessPercentRef.current}%`)
             } else if (rightPinched) {
+              rightReverbPinchActiveRef.current = false
+              rightBrightnessPinchActiveRef.current = false
               const volumePercent = Math.round(clamp(1 - rightIndexTip.y, 0, 1) * 100)
               currentVolumePercentRef.current = volumePercent
               setVolumePercent(volumePercent)
@@ -369,7 +410,7 @@ function App() {
             </div>
             <div className="parameter-row">
               <span>Brightness:</span>
-              <span>0%</span>
+              <span>{brightnessPercent}%</span>
             </div>
             <div className="parameter-row">
               <span>Texture:</span>
