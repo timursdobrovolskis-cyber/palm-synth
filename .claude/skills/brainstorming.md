@@ -1,0 +1,1 @@
+/Users/humanity07/Desktop/palm-synth/.agents/skills/brainstorming/SKILL.md

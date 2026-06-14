@@ -76,6 +76,44 @@
   color: #fff;
 }
 
+.layer-selectors {
+  display: flex;
+  gap: 8px;
+}
+
+.layer-btn {
+  flex: 1;
+  border: 1px solid #444;
+  background: rgba(255, 255, 255, 0.04);
+  color: #fff;
+  padding: 8px 10px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.layer-btn.active {
+  border-color: #ff6600;
+  background: rgba(255, 102, 0, 0.14);
+}
+
+.layer-btn:hover:not(:disabled) {
+  border-color: #777;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.layer-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.tempo-slider {
+  width: 100%;
+  accent-color: #ff6600;
+}
+
 .parameter-row {
   display: flex;
   justify-content: space-between;
@@ -92,6 +130,28 @@
   font-size: 0.8rem;
   color: #fff;
   letter-spacing: 0.05em;
+}
+
+.drums-btn {
+  border: 1px solid #444;
+  background: rgba(255, 255, 255, 0.04);
+  color: #fff;
+  padding: 8px 10px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.drums-btn:hover:not(:disabled) {
+  border-color: #777;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.drums-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .status-box {
