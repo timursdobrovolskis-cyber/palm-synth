@@ -6,7 +6,7 @@ import './App.css'
 const MODEL_URL =
   'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task'
 const WASM_URL = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm'
-const SCALE_NOTES = ['C3', 'D3', 'F3', 'G3', 'A3', 'C4', 'D4', 'F4', 'G4', 'A4', 'C5']
+const DRONE_NOTES = ['A2', 'C3', 'D3', 'E3', 'G3', 'A3', 'C4', 'D4', 'E4', 'G4', 'A4']
 const DRONE_PRESETS = [
   { label: 'Fog',    oscillator: 'triangle', attack: 0.10, release: 1.0, grungeDrive: 0.22, grungeGain: 0.18 },
   { label: 'Sine',   oscillator: 'sine',     attack: 0.30, release: 2.0, grungeDrive: 0.06, grungeGain: 0.06 },
@@ -16,16 +16,22 @@ const DRONE_PRESETS = [
 ]
 const DRUM_PRESETS = ['Lo-Fi', 'Jungle', 'Breakbeat', 'Glitch', 'Garage']
 const JUNGLE_LOOP_VARIATIONS = [
-  { label: 'A', bpm: 180, url: '/samples/jungle/amen-break-remake-compressed-loop-180bpm.mp3' },
-  { label: 'B', bpm: 180, url: '/samples/jungle/breakbeat-180bpm-scydan.mp3' },
-  { label: 'C', bpm: 174, url: '/samples/jungle/dnb-break-174bpm-crash-358.mp3' },
-  { label: 'D', bpm: 170, url: '/samples/jungle/broke-170bpm-el-bardo.mp3' },
+  { label: 'A', bpm: 180, beats: 16, url: '/samples/jungle/amen-break-remake-compressed-loop-180bpm.mp3' },
+  { label: 'B', bpm: 180, beats: 16, url: '/samples/jungle/breakbeat-180bpm-scydan.mp3' },
+  { label: 'C', bpm: 174, beats: 8, url: '/samples/jungle/dnb-break-174bpm-crash-358.mp3' },
+  { label: 'D', bpm: 170, beats: 8, url: '/samples/jungle/broke-170bpm-el-bardo.mp3' },
 ]
 const LOFI_LOOP_VARIATIONS = [
-  { label: 'A', bpm: 70, url: '/samples/lo-fi/looperman-l-1665991-0415972-lofi-drums-chil.wav' },
-  { label: 'B', bpm: 85, url: '/samples/lo-fi/looperman-l-7823406-0407672-lofi-drum-loop.wav' },
-  { label: 'C', bpm: 86, url: '/samples/lo-fi/looperman-l-1929922-0121076-alabafruit-lofi-hip-hop-drum-muffled-and-dusty.wav' },
-  { label: 'D', bpm: 95, url: '/samples/lo-fi/looperman-l-1929922-0199627-hard-lofi-boom-bap-hip-hop-old-school-drums-beat-95-bpm.wav' },
+  { label: 'A', bpm: 70, beats: 16, url: '/samples/lo-fi/looperman-l-1665991-0415972-lofi-drums-chil.wav' },
+  { label: 'B', bpm: 85, beats: 8, url: '/samples/lo-fi/looperman-l-7823406-0407672-lofi-drum-loop.wav' },
+  { label: 'C', bpm: 86, beats: 16, url: '/samples/lo-fi/looperman-l-1929922-0121076-alabafruit-lofi-hip-hop-drum-muffled-and-dusty.wav' },
+  { label: 'D', bpm: 95, beats: 16, url: '/samples/lo-fi/looperman-l-1929922-0199627-hard-lofi-boom-bap-hip-hop-old-school-drums-beat-95-bpm.wav' },
+]
+const GARAGE_LOOP_VARIATIONS = [
+  { label: 'A', bpm: 135, beats: 4, url: '/samples/garage/looperman-l-8385368-0427172-135-ukg-swing-drums.wav' },
+  { label: 'B', bpm: 132, beats: 32, url: '/samples/garage/looperman-l-7108189-0414091-uk-garage-drums-following-orders.wav' },
+  { label: 'C', bpm: 140, beats: 32, url: '/samples/garage/looperman-l-7108189-0411985-uk-garage-drums-2-step-4-step.wav' },
+  { label: 'D', bpm: 130, beats: 32, url: '/samples/garage/looperman-l-7108189-0410178-experimental-garage-drums-pop-pop.wav' },
 ]
 const BASS_PATTERNS = [
   { label: 'Root Pulse', notes: [[0, 'A1', 0], [4, 'A1', 45], [8, 'A1', 0], [12, 'E2', 55], [14, 'G2', 75]] },
@@ -215,6 +221,12 @@ const DRUM_GROOVE_PRESETS = {
 const clamp = (val, min, max) => Math.min(Math.max(val, min), max)
 const brightnessToFrequency = (percent) => 200 + (percent / 100) * 4800
 const drumFilterToFrequency = (percent) => 500 + (percent / 100) * 6500
+const drumVolumeToBusGain = (percent) => percent <= 0 ? 0 : 0.35 + (percent / 100) * 1.45
+const drumVolumeToLoopGain = (percent) => percent <= 0 ? 0 : 0.2 + (percent / 100) * 1
+const loopPlaybackRate = (loop, bpm, variation) => {
+  const targetDuration = (variation.beats * 60) / bpm
+  return loop?.buffer?.duration ? loop.buffer.duration / targetDuration : bpm / variation.bpm
+}
 
 function App() {
   const [started, setStarted] = useState(false)
@@ -225,7 +237,6 @@ function App() {
   const [volumePercent, setVolumePercent] = useState(50)
   const [reverbPercent, setReverbPercent] = useState(30)
   const [brightnessPercent, setBrightnessPercent] = useState(20)
-  const [texturePercent, setTexturePercent] = useState(0)
   const [drumsOn, setDrumsOn] = useState(false)
   const [droneOn, setDroneOn] = useState(true)
   const [tempoBpm, setTempoBpm] = useState(80)
@@ -234,6 +245,7 @@ function App() {
   const [drumPreset, setDrumPreset] = useState('Lo-Fi')
   const [drumLoopVariationIndex, setDrumLoopVariationIndex] = useState(0)
   const [lofiLoopVariationIndex, setLofiLoopVariationIndex] = useState(0)
+  const [garageLoopVariationIndex, setGarageLoopVariationIndex] = useState(0)
   const [bassOn, setBassOn] = useState(false)
   const [bassVolumePercent, setBassVolumePercent] = useState(50)
   const [bassActivityPercent, setBassActivityPercent] = useState(50)
@@ -257,15 +269,12 @@ function App() {
   const rightPinchActiveRef = useRef(false)
   const rightReverbPinchActiveRef = useRef(false)
   const rightBrightnessPinchActiveRef = useRef(false)
-  const rightTexturePinchActiveRef = useRef(false)
   const savedVolumePercentRef = useRef(50)
   const currentVolumePercentRef = useRef(50)
   const savedReverbPercentRef = useRef(30)
   const currentReverbPercentRef = useRef(30)
   const savedBrightnessPercentRef = useRef(20)
   const currentBrightnessPercentRef = useRef(20)
-  const savedTexturePercentRef = useRef(0)
-  const currentTexturePercentRef = useRef(0)
   const drumsOnRef = useRef(false)
   const droneOnRef = useRef(true)
   const drumVolumePinchActiveRef = useRef(false)
@@ -282,6 +291,7 @@ function App() {
   const currentDrumPresetRef = useRef('Lo-Fi')
   const currentDrumLoopVariationIndexRef = useRef(0)
   const currentLofiLoopVariationIndexRef = useRef(0)
+  const currentGarageLoopVariationIndexRef = useRef(0)
   const bassOnRef = useRef(false)
   const currentBassVolumePercentRef = useRef(50)
   const currentBassActivityPercentRef = useRef(50)
@@ -314,8 +324,7 @@ function App() {
     if (!audio?.jungleLoopGain) return
 
     const loopIsActive = drumsOnRef.current && currentDrumPresetRef.current === 'Jungle'
-    const volume = currentDrumVolumePercentRef.current / 100
-    audio.jungleLoopGain.gain.rampTo(loopIsActive ? 0.45 + volume * 0.75 : 0, 0.08)
+    audio.jungleLoopGain.gain.rampTo(loopIsActive ? drumVolumeToLoopGain(currentDrumVolumePercentRef.current) : 0, 0.08)
     audio.jungleVariationGains?.forEach((gain, index) => {
       gain.gain.rampTo(index === currentDrumLoopVariationIndexRef.current ? 1 : 0, 0.08)
     })
@@ -323,7 +332,7 @@ function App() {
 
   const updateJungleLoopTempo = (bpm) => {
     window.palmSynthAudio?.drums?.jungleLoops?.forEach((loop, index) => {
-      loop.playbackRate = bpm / JUNGLE_LOOP_VARIATIONS[index].bpm
+      loop.playbackRate = loopPlaybackRate(loop, bpm, JUNGLE_LOOP_VARIATIONS[index])
     })
   }
 
@@ -348,8 +357,7 @@ function App() {
     const audio = window.palmSynthAudio?.drums
     if (!audio?.lofiLoopGain) return
     const loopIsActive = drumsOnRef.current && currentDrumPresetRef.current === 'Lo-Fi'
-    const volume = currentDrumVolumePercentRef.current / 100
-    audio.lofiLoopGain.gain.rampTo(loopIsActive ? 0.45 + volume * 0.75 : 0, 0.08)
+    audio.lofiLoopGain.gain.rampTo(loopIsActive ? drumVolumeToLoopGain(currentDrumVolumePercentRef.current) : 0, 0.08)
     audio.lofiVariationGains?.forEach((gain, index) => {
       gain.gain.rampTo(index === currentLofiLoopVariationIndexRef.current ? 1 : 0, 0.08)
     })
@@ -357,7 +365,7 @@ function App() {
 
   const updateLofiLoopTempo = (bpm) => {
     window.palmSynthAudio?.drums?.lofiLoops?.forEach((loop, index) => {
-      loop.playbackRate = bpm / LOFI_LOOP_VARIATIONS[index].bpm
+      loop.playbackRate = loopPlaybackRate(loop, bpm, LOFI_LOOP_VARIATIONS[index])
     })
   }
 
@@ -375,6 +383,38 @@ function App() {
     updateLofiLoopTempo(nextTempo)
     updateLofiLoopMix()
     setDroneStatus(`Lo-Fi loop: ${LOFI_LOOP_VARIATIONS[nextIndex].label}`)
+  }
+
+  const updateGarageLoopMix = () => {
+    const audio = window.palmSynthAudio?.drums
+    if (!audio?.garageLoopGain) return
+    const loopIsActive = drumsOnRef.current && currentDrumPresetRef.current === 'Garage'
+    audio.garageLoopGain.gain.rampTo(loopIsActive ? drumVolumeToLoopGain(currentDrumVolumePercentRef.current) : 0, 0.08)
+    audio.garageVariationGains?.forEach((gain, index) => {
+      gain.gain.rampTo(index === currentGarageLoopVariationIndexRef.current ? 1 : 0, 0.08)
+    })
+  }
+
+  const updateGarageLoopTempo = (bpm) => {
+    window.palmSynthAudio?.drums?.garageLoops?.forEach((loop, index) => {
+      loop.playbackRate = loopPlaybackRate(loop, bpm, GARAGE_LOOP_VARIATIONS[index])
+    })
+  }
+
+  const cycleGarageLoopVariation = () => {
+    if (currentDrumPresetRef.current !== 'Garage') {
+      setDroneStatus('Loop variations are available in Garage')
+      return
+    }
+    const nextIndex = (currentGarageLoopVariationIndexRef.current + 1) % GARAGE_LOOP_VARIATIONS.length
+    currentGarageLoopVariationIndexRef.current = nextIndex
+    setGarageLoopVariationIndex(nextIndex)
+    const nextTempo = GARAGE_LOOP_VARIATIONS[nextIndex].bpm
+    setTempoBpm(nextTempo)
+    Tone.Transport.bpm.value = nextTempo
+    updateGarageLoopTempo(nextTempo)
+    updateGarageLoopMix()
+    setDroneStatus(`Garage loop: ${GARAGE_LOOP_VARIATIONS[nextIndex].label}`)
   }
 
   const cycleBassPattern = () => {
@@ -459,7 +499,7 @@ function App() {
     if (!audio) return
 
     const preset = DRUM_GROOVE_PRESETS[presetName] ?? DRUM_GROOVE_PRESETS['Lo-Fi']
-    audio.drumBus.gain.value = preset.drumBusGain
+    audio.drumBus.gain.value = preset.drumBusGain * drumVolumeToBusGain(currentDrumVolumePercentRef.current)
     audio.drumOutput.gain.value = preset.drumOutputGain
     audio.drumSend.gain.value = preset.drumSendGain
     audio.cymbalBus && preset.cymbalBusGain && (audio.cymbalBus.gain.value = preset.cymbalBusGain)
@@ -501,13 +541,17 @@ function App() {
       ? JUNGLE_LOOP_VARIATIONS[currentDrumLoopVariationIndexRef.current].bpm
       : presetName === 'Lo-Fi'
         ? LOFI_LOOP_VARIATIONS[currentLofiLoopVariationIndexRef.current].bpm
-        : tempoBpm
+        : presetName === 'Garage'
+          ? GARAGE_LOOP_VARIATIONS[currentGarageLoopVariationIndexRef.current].bpm
+          : tempoBpm
     setTempoBpm(nextTempo)
     Tone.Transport.bpm.value = nextTempo
     updateJungleLoopTempo(nextTempo)
     updateJungleLoopMix()
     updateLofiLoopTempo(nextTempo)
     updateLofiLoopMix()
+    updateGarageLoopTempo(nextTempo)
+    updateGarageLoopMix()
     setDrumPreset(presetName)
   }
 
@@ -664,15 +708,19 @@ function App() {
       const jungleLoops = JUNGLE_LOOP_VARIATIONS.map(({ url }, index) => new Tone.Player({
         url,
         loop: true,
-        playbackRate: JUNGLE_LOOP_VARIATIONS[0].bpm / JUNGLE_LOOP_VARIATIONS[index].bpm,
       }).connect(jungleVariationGains[index]))
       const lofiLoopGain = new Tone.Gain(0).connect(masterCompressor)
       const lofiVariationGains = LOFI_LOOP_VARIATIONS.map(() => new Tone.Gain(0).connect(lofiLoopGain))
       const lofiLoops = LOFI_LOOP_VARIATIONS.map(({ url }, index) => new Tone.Player({
         url,
         loop: true,
-        playbackRate: LOFI_LOOP_VARIATIONS[0].bpm / LOFI_LOOP_VARIATIONS[index].bpm,
       }).connect(lofiVariationGains[index]))
+      const garageLoopGain = new Tone.Gain(0).connect(masterCompressor)
+      const garageVariationGains = GARAGE_LOOP_VARIATIONS.map(() => new Tone.Gain(0).connect(garageLoopGain))
+      const garageLoops = GARAGE_LOOP_VARIATIONS.map(({ url }, index) => new Tone.Player({
+        url,
+        loop: true,
+      }).connect(garageVariationGains[index]))
       const bassGain = new Tone.Gain(0).connect(masterCompressor)
       const bassPresenceGain = new Tone.Gain(0).connect(masterCompressor)
       const bassPresenceFilter = new Tone.Filter({
@@ -717,6 +765,7 @@ function App() {
       await Tone.loaded()
       jungleLoops.forEach((loop) => loop.sync().start(0))
       lofiLoops.forEach((loop) => loop.sync().start(0))
+      garageLoops.forEach((loop) => loop.sync().start(0))
       const bassSeq = new Tone.Sequence((time, step) => {
         if (!bassOnRef.current || step === undefined) return
 
@@ -738,7 +787,7 @@ function App() {
 
       const drumSeq = new Tone.Sequence((time, step) => {
         if (!drumsOnRef.current || step === undefined) return
-        if (currentDrumPresetRef.current === 'Jungle' || currentDrumPresetRef.current === 'Lo-Fi') return
+        if (currentDrumPresetRef.current === 'Jungle' || currentDrumPresetRef.current === 'Lo-Fi' || currentDrumPresetRef.current === 'Garage') return
 
         const density = currentDrumDensityPercentRef.current
         const activePattern = window.palmSynthAudio?.drums?.drumPattern ?? DRUM_GROOVE_PRESETS['Lo-Fi'].patterns
@@ -829,6 +878,9 @@ function App() {
         lofiLoops,
         lofiVariationGains,
         lofiLoopGain,
+        garageLoops,
+        garageVariationGains,
+        garageLoopGain,
         drumSeq,
         drumPattern: DRUM_GROOVE_PRESETS['Lo-Fi'].patterns,
       }
@@ -844,8 +896,6 @@ function App() {
       currentReverbPercentRef.current = 30
       savedBrightnessPercentRef.current = 20
       currentBrightnessPercentRef.current = 20
-      savedTexturePercentRef.current = 0
-      currentTexturePercentRef.current = 0
       savedDrumVolumePercentRef.current = 50
       currentDrumVolumePercentRef.current = 50
       savedDrumDensityPercentRef.current = 50
@@ -855,15 +905,16 @@ function App() {
       setVolumePercent(50)
       setReverbPercent(30)
       setBrightnessPercent(20)
-      setTexturePercent(0)
       setDrumVolumePercent(50)
       setDrumDensityPercent(50)
       setDrumPreset('Lo-Fi')
       setDrumLoopVariationIndex(0)
       setLofiLoopVariationIndex(0)
+      setGarageLoopVariationIndex(0)
       drumPresetIndexRef.current = 0
       currentDrumLoopVariationIndexRef.current = 0
       currentLofiLoopVariationIndexRef.current = 0
+      currentGarageLoopVariationIndexRef.current = 0
       setBassOn(false)
       bassOnRef.current = false
       setBassVolumePercent(50)
@@ -891,7 +942,7 @@ function App() {
       drumsOnRef.current = false
       setDroneOn(true)
       droneOnRef.current = true
-      window.palmSynthAudio.drums.drumBus.gain.value = 0.45 + (50 / 100) * 0.85
+      window.palmSynthAudio.drums.drumBus.gain.value = DRUM_GROOVE_PRESETS['Lo-Fi'].drumBusGain * drumVolumeToBusGain(50)
       currentDrumVolumePercentRef.current = 50
       currentDrumDensityPercentRef.current = 50
       currentDrumPresetRef.current = 'Lo-Fi'
@@ -1021,6 +1072,9 @@ function App() {
       window.palmSynthAudio.drums?.lofiLoops?.forEach((loop) => loop.dispose())
       window.palmSynthAudio.drums?.lofiVariationGains?.forEach((gain) => gain.dispose())
       window.palmSynthAudio.drums?.lofiLoopGain?.dispose?.()
+      window.palmSynthAudio.drums?.garageLoops?.forEach((loop) => loop.dispose())
+      window.palmSynthAudio.drums?.garageVariationGains?.forEach((gain) => gain.dispose())
+      window.palmSynthAudio.drums?.garageLoopGain?.dispose?.()
       window.palmSynthAudio = null
     }
 
@@ -1035,15 +1089,12 @@ function App() {
     rightPinchActiveRef.current = false
     rightReverbPinchActiveRef.current = false
     rightBrightnessPinchActiveRef.current = false
-    rightTexturePinchActiveRef.current = false
     savedVolumePercentRef.current = 50
     currentVolumePercentRef.current = 50
     savedReverbPercentRef.current = 30
     currentReverbPercentRef.current = 30
     savedBrightnessPercentRef.current = 20
     currentBrightnessPercentRef.current = 20
-    savedTexturePercentRef.current = 0
-    currentTexturePercentRef.current = 0
     savedDrumVolumePercentRef.current = 50
     currentDrumVolumePercentRef.current = 50
     savedDrumDensityPercentRef.current = 50
@@ -1054,15 +1105,16 @@ function App() {
     setVolumePercent(50)
     setReverbPercent(30)
     setBrightnessPercent(20)
-    setTexturePercent(0)
     setDrumVolumePercent(50)
     setDrumDensityPercent(50)
     setDrumPreset('Lo-Fi')
     setDrumLoopVariationIndex(0)
     setLofiLoopVariationIndex(0)
+    setGarageLoopVariationIndex(0)
     drumPresetIndexRef.current = 0
     currentDrumLoopVariationIndexRef.current = 0
     currentLofiLoopVariationIndexRef.current = 0
+    currentGarageLoopVariationIndexRef.current = 0
     setBassOn(false)
     bassOnRef.current = false
     setBassVolumePercent(50)
@@ -1145,6 +1197,7 @@ function App() {
     setDrumsOn(next)
     updateJungleLoopMix()
     updateLofiLoopMix()
+    updateGarageLoopMix()
     setDroneStatus(`Drums toggled ${next ? 'on' : 'off'}`)
   }
 
@@ -1154,6 +1207,7 @@ function App() {
     Tone.Transport.bpm.value = next
     updateJungleLoopTempo(next)
     updateLofiLoopTempo(next)
+    updateGarageLoopTempo(next)
   }
 
   const startDetection = () => {
@@ -1292,7 +1346,6 @@ function App() {
               synthPresetPinchActiveRef.current = false
               setDroneStatus('Synth settings saved')
             } else {
-              rightPinchActiveRef.current = false
               dronePresetPinchActiveRef.current = false
               if (rightReverbPinchActiveRef.current) {
                 rightReverbPinchActiveRef.current = false
@@ -1304,12 +1357,8 @@ function App() {
                 savedBrightnessPercentRef.current = currentBrightnessPercentRef.current
                 setBrightnessPercent(savedBrightnessPercentRef.current)
                 setDroneStatus(`Brightness saved: ${savedBrightnessPercentRef.current}%`)
-              } else if (rightTexturePinchActiveRef.current) {
-                rightTexturePinchActiveRef.current = false
-                savedTexturePercentRef.current = currentTexturePercentRef.current
-                setTexturePercent(savedTexturePercentRef.current)
-                setDroneStatus(`Texture saved: ${savedTexturePercentRef.current}%`)
               } else if (rightPinchActiveRef.current) {
+                rightPinchActiveRef.current = false
                 savedVolumePercentRef.current = currentVolumePercentRef.current
                 setVolumePercent(savedVolumePercentRef.current)
                 setDroneStatus(`Volume saved: ${savedVolumePercentRef.current}%`)
@@ -1349,9 +1398,10 @@ function App() {
                 const nextVolume = Math.round(clamp(1 - rightIndexTip.y, 0, 1) * 100)
                 currentDrumVolumePercentRef.current = nextVolume
                 setDrumVolumePercent(nextVolume)
-                window.palmSynthAudio.drums.drumBus.gain.value = 0.7 + (nextVolume / 100) * 1.25
+                window.palmSynthAudio.drums.drumBus.gain.value = DRUM_GROOVE_PRESETS[currentDrumPresetRef.current].drumBusGain * drumVolumeToBusGain(nextVolume)
                 updateJungleLoopMix()
                 updateLofiLoopMix()
+                updateGarageLoopMix()
                 setDroneStatus(`Editing drum volume: ${nextVolume}%`)
                 drumVolumePinchActiveRef.current = true
               } else if (drumVolumePinchActiveRef.current) {
@@ -1376,12 +1426,20 @@ function App() {
                   Tone.Transport.bpm.value = nextTempo
                   updateLofiLoopTempo(nextTempo)
                   setDroneStatus(`Editing Lo-Fi tempo: ${nextTempo} BPM`)
+                } else if (currentDrumPresetRef.current === 'Garage') {
+                  const nativeTempo = GARAGE_LOOP_VARIATIONS[currentGarageLoopVariationIndexRef.current].bpm
+                  const nextTempo = Math.round(nativeTempo - 20 + clamp(1 - rightMiddleTip.y, 0, 1) * 40)
+                  setTempoBpm(nextTempo)
+                  Tone.Transport.bpm.value = nextTempo
+                  updateGarageLoopTempo(nextTempo)
+                  setDroneStatus(`Editing Garage tempo: ${nextTempo} BPM`)
                 } else {
                   const nextTempo = Math.round(60 + clamp(1 - rightMiddleTip.y, 0, 1) * 60)
                   setTempoBpm(nextTempo)
                   Tone.Transport.bpm.value = nextTempo
                   updateJungleLoopTempo(nextTempo)
                   updateLofiLoopTempo(nextTempo)
+                  updateGarageLoopTempo(nextTempo)
                   setDroneStatus(`Editing drum tempo: ${nextTempo} BPM`)
                 }
                 drumTempoPinchActiveRef.current = true
@@ -1390,6 +1448,7 @@ function App() {
                 setDroneStatus(`Drum tempo saved: ${tempoBpm} BPM`)
               } else if (rightLoopPinched && !drumLoopPinchActiveRef.current) {
                 if (currentDrumPresetRef.current === 'Lo-Fi') cycleLofiLoopVariation()
+                else if (currentDrumPresetRef.current === 'Garage') cycleGarageLoopVariation()
                 else cycleJungleLoopVariation()
                 drumLoopPinchActiveRef.current = true
               } else if (!rightLoopPinched && drumLoopPinchActiveRef.current) {
@@ -1519,7 +1578,7 @@ function App() {
                 !!rightThumbTip &&
                 !!rightRingTip &&
                 Math.hypot(rightThumbTip.x - rightRingTip.x, rightThumbTip.y - rightRingTip.y) < 0.05
-              const rightTexturePinched =
+              const rightPresetPinched =
                 !!rightThumbTip &&
                 !!rightPinkyTip &&
                 Math.hypot(rightThumbTip.x - rightPinkyTip.x, rightThumbTip.y - rightPinkyTip.y) < 0.05
@@ -1527,7 +1586,6 @@ function App() {
               if (rightReverbPinched) {
                 rightPinchActiveRef.current = false
                 rightBrightnessPinchActiveRef.current = false
-                rightTexturePinchActiveRef.current = false
                 const reverbValue = Math.round(clamp(1 - rightMiddleTip.y, 0, 1) * 100)
                 currentReverbPercentRef.current = reverbValue
                 setReverbPercent(reverbValue)
@@ -1542,7 +1600,6 @@ function App() {
               } else if (rightBrightnessPinched) {
                 rightPinchActiveRef.current = false
                 rightReverbPinchActiveRef.current = false
-                rightTexturePinchActiveRef.current = false
                 const brightnessValue = Math.round(clamp(1 - rightRingTip.y, 0, 1) * 100)
                 currentBrightnessPercentRef.current = brightnessValue
                 setBrightnessPercent(brightnessValue)
@@ -1568,24 +1625,23 @@ function App() {
                 savedVolumePercentRef.current = currentVolumePercentRef.current
                 setVolumePercent(savedVolumePercentRef.current)
                 setDroneStatus(`Volume saved: ${savedVolumePercentRef.current}%`)
-              } else if (rightTexturePinched && !dronePresetPinchActiveRef.current) {
+              } else if (rightPresetPinched && !dronePresetPinchActiveRef.current) {
                 rightPinchActiveRef.current = false
                 rightReverbPinchActiveRef.current = false
                 rightBrightnessPinchActiveRef.current = false
                 cycleDronePreset()
                 dronePresetPinchActiveRef.current = true
-              } else if (!rightTexturePinched && dronePresetPinchActiveRef.current) {
+              } else if (!rightPresetPinched && dronePresetPinchActiveRef.current) {
                 dronePresetPinchActiveRef.current = false
               }
             }
           }
 
-          if (leftHandIndex >= 0) {
-            const indexTip = hands[leftHandIndex]?.[8]
-            if (indexTip) {
-              const noteIndex = Math.floor(clamp(1 - indexTip.y, 0, 1) * (SCALE_NOTES.length - 1))
-              pendingNoteRef.current = SCALE_NOTES[noteIndex]
-            }
+          if (selectedLayerRef.current === 'drone' && leftPinchActiveRef.current && leftIndexTip) {
+            const noteIndex = Math.floor(clamp(1 - leftIndexTip.y, 0, 1) * (DRONE_NOTES.length - 1))
+            pendingNoteRef.current = DRONE_NOTES[noteIndex]
+          } else if (selectedLayerRef.current !== 'drone') {
+            pendingNoteRef.current = currentNoteRef.current
           }
         }
 
@@ -1695,7 +1751,9 @@ function App() {
                       ? `${tempoBpm} BPM (native ${JUNGLE_LOOP_VARIATIONS[drumLoopVariationIndex].bpm})`
                       : drumPreset === 'Lo-Fi'
                         ? `${tempoBpm} BPM (native ${LOFI_LOOP_VARIATIONS[lofiLoopVariationIndex].bpm})`
-                        : `${tempoBpm} BPM`}
+                        : drumPreset === 'Garage'
+                          ? `${tempoBpm} BPM (native ${GARAGE_LOOP_VARIATIONS[garageLoopVariationIndex].bpm})`
+                          : `${tempoBpm} BPM`}
                   </span>
                 </div>
                 <div className="parameter-row">
@@ -1705,7 +1763,9 @@ function App() {
                       ? `${JUNGLE_LOOP_VARIATIONS[drumLoopVariationIndex].label} (${drumLoopVariationIndex + 1}/${JUNGLE_LOOP_VARIATIONS.length})`
                       : drumPreset === 'Lo-Fi'
                         ? `${LOFI_LOOP_VARIATIONS[lofiLoopVariationIndex].label} (${lofiLoopVariationIndex + 1}/${LOFI_LOOP_VARIATIONS.length})`
-                        : 'Generated'}
+                        : drumPreset === 'Garage'
+                          ? `${GARAGE_LOOP_VARIATIONS[garageLoopVariationIndex].label} (${garageLoopVariationIndex + 1}/${GARAGE_LOOP_VARIATIONS.length})`
+                          : 'Generated'}
                   </span>
                 </div>
                 <div className="parameter-row">
@@ -1715,8 +1775,8 @@ function App() {
                 <input
                   className="tempo-slider"
                   type="range"
-                  min={drumPreset === 'Jungle' ? JUNGLE_LOOP_VARIATIONS[drumLoopVariationIndex].bpm - 20 : drumPreset === 'Lo-Fi' ? LOFI_LOOP_VARIATIONS[lofiLoopVariationIndex].bpm - 20 : 60}
-                  max={drumPreset === 'Jungle' ? JUNGLE_LOOP_VARIATIONS[drumLoopVariationIndex].bpm + 20 : drumPreset === 'Lo-Fi' ? LOFI_LOOP_VARIATIONS[lofiLoopVariationIndex].bpm + 20 : 120}
+                  min={drumPreset === 'Jungle' ? JUNGLE_LOOP_VARIATIONS[drumLoopVariationIndex].bpm - 20 : drumPreset === 'Lo-Fi' ? LOFI_LOOP_VARIATIONS[lofiLoopVariationIndex].bpm - 20 : drumPreset === 'Garage' ? GARAGE_LOOP_VARIATIONS[garageLoopVariationIndex].bpm - 20 : 60}
+                  max={drumPreset === 'Jungle' ? JUNGLE_LOOP_VARIATIONS[drumLoopVariationIndex].bpm + 20 : drumPreset === 'Lo-Fi' ? LOFI_LOOP_VARIATIONS[lofiLoopVariationIndex].bpm + 20 : drumPreset === 'Garage' ? GARAGE_LOOP_VARIATIONS[garageLoopVariationIndex].bpm + 20 : 120}
                   value={tempoBpm}
                   onChange={handleTempoChange}
                 />
