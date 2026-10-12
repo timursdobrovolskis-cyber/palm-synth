@@ -1,16 +1,51 @@
-# React + Vite
+# palm-synth
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A hand-controlled synth that runs in the browser. Your webcam tracks both hands with [MediaPipe Hand Landmarker](https://ai.google.dev/edge/mediapipe/solutions/vision/hand_landmarker), and pinch gestures play and shape four [Tone.js](https://tonejs.github.io/) layers: a **drone**, **bass**, a **melodic synth** and **drums**.
 
-Currently, two official plugins are available:
+## Running it
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+```bash
+npm install
+npm run dev
+```
 
-## React Compiler
+Open the local URL Vite prints, click **Start** and allow camera access. Use a recent desktop browser; the hand-tracking model loads from Google's CDN, so you need to be online.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Controls
 
-## Expanding the ESLint configuration
+The **left hand picks a layer**: pinch your thumb against one of its fingers and hold it. While you hold the pinch, the **right hand edits that layer**. When you let go of the left pinch, your settings are saved.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+| Left-hand pinch (thumb +) | Layer  |
+| ------------------------- | ------ |
+| Index                     | Drone  |
+| Middle                    | Synth  |
+| Ring                      | Bass   |
+| Pinky                     | Drums  |
+
+With a layer selected, pinch your right thumb against a finger. For continuous controls, the height of the pinch sets the value (higher means more):
+
+| Right-hand pinch (thumb +) | Drone      | Synth            | Bass             | Drums                         |
+| -------------------------- | ---------- | ---------------- | ---------------- | ----------------------------- |
+| Index                      | Volume     | Volume           | Volume           | Volume                        |
+| Middle                     | Reverb     | Motion           | Activity         | Tempo                         |
+| Ring                       | Brightness | Next pattern     | Next pattern     | Next loop variation           |
+| Pinky                      | Next preset| Next preset      | Next character   | Next style                    |
+
+In drone mode, the height of your **left index finger** also sets the pitch of the drone note.
+
+The on-screen button turns the selected layer on or off, and the tempo slider sets the BPM.
+
+### Presets
+
+- **Drone:** Fog, Sine, Buzz, Square, Dream
+- **Synth:** 90s Digital, Analog Poly, FM Keys, Acid Pluck, Organ Synth, Dream Pad
+- **Drum styles:** Lo-Fi, Jungle, Breakbeat, Glitch, Garage. The Jungle, Lo-Fi and Garage styles use sampled loops, with four variations each.
+
+## Stack
+
+React 19, Vite, Tone.js, and `@mediapipe/tasks-vision`.
+
+## Sample credits
+
+- `public/samples/jungle/`: CC0 loops from Freesound. See [SOURCE.md](public/samples/jungle/SOURCE.md) for creators and links.
+- `public/samples/lo-fi/` and `public/samples/garage/`: drum loops from [Looperman](https://www.looperman.com/). The filenames contain the Looperman loop IDs, and the loops are subject to Looperman's terms of use.
